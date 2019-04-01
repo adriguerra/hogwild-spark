@@ -1,0 +1,15 @@
+# Project
+src/main/resources
+build.sbt
+project/
+
+# Scala
+target
+*.class
+
+# IntelliJ
+*.iml
+*.ipr
+*.iws
+.idea
+out

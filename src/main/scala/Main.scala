@@ -9,7 +9,7 @@ object Main {
       "/Users/guerra/hogwild-spark/src/main/resources/lyrl2004_vectors_test_pt2.dat",
       "/Users/guerra/hogwild-spark/src/main/resources/lyrl2004_vectors_test_pt3.dat")
     val train_path = "/Users/guerra/hogwild-spark/src/main/resources/lyrl2004_vectors_train.dat"
-    val data, labels = load_large_reuters_data(train_path, topics_path, test_path, "CCAT", true)
+    val data, labels = load_reuters_data(train_path, topics_path, test_path, "CCAT", true)
   }
 
   def generate_map(datapoint: List[String]) = {
@@ -17,7 +17,7 @@ object Main {
     datapoint.map(x => x.split(":")).map(x => (x.head, x.last))
   }
 
-  def load_large_reuters_data(train_path: String, topics_path: String, test_path: List[String], selected_cat: String, train: Boolean): (List[(String, String)], List[Int]) = {
+  def load_reuters_data(train_path: String, topics_path: String, test_path: List[String], selected_cat: String, train: Boolean): (List[(String, String)], List[Int]) = {
     var labels_tmp = ""
     var data = List[(String, String)]()
     if (train) {

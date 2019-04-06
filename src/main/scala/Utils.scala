@@ -2,57 +2,69 @@ import scala.io.Source
 
 object Utils {
 
-  def generate_map(datapoint: List[String]) = {
+  def generate_mappings(datapoint: Array[String]) = {
     //    val d = {0 -> 1}
-    datapoint.map(x => x.split(":")).map(x => (x.head, x.last))
+    datapoint.map(x => {
+      val pairs = x.split(":")
+      (pairs.head.toInt, pairs.last.toFloat)
+    }).toMap
   }
 
-  def load_sample_reuters_data(train_path: String, topics_path: String, test_path: List[String], selected_cat: String, train: Boolean): (List[(String, String)], List[Int]) = {
-    var labels_tmp = ""
-    var data = List[(String, String)]()
-    if (train) {
-      val source = Source.fromFile(train_path)
-      val lines = source.getLines().take(4).flatMap(line => line.trim().split(" ")).toList
-      labels_tmp = lines.head
-      data = generate_map(lines.tail.tail)
-    }
-    else {
-      for (path <- test_path) {
-        val source = Source.fromFile(path)
-        val lines = source.getLines().take(4).flatMap(line => line.trim().split(" ")).toList
-        val label = lines.head
-        val data_i = generate_map(lines.tail.tail)
-        labels_tmp += label
-        data ++= data_i
-      }
-    }
-    val cat = get_category_dict(topics_path)
-    val labels = labels_tmp.map(label => if (cat.get(label.toInt).contains(selected_cat)) 1 else -1)
-    (data, labels.toList)
+  def generate_labelled_data(lines: Iterator[String]) = {
+    lines.map(line => {
+      val elements = line.trim().split(" ")
+      val label = elements.head.toInt
+      val mappings = generate_mappings(elements.tail.tail)
+      (mappings, label)
+    }).toList.unzip
   }
 
-  def load_reuters_data(train_path: String, topics_path: String, test_path: List[String], selected_cat: String, train: Boolean): (List[(String, String)], List[Int]) = {
-    var labels_tmp = ""
-    var data = List[(String, String)]()
-    if (train) {
-      val source = Source.fromFile(train_path)
-      val lines = source.getLines().flatMap(line => line.trim().split(" ")).toList
-      labels_tmp = lines.head
-      data = generate_map(lines.tail.tail)
-    }
-    else {
-      for (path <- test_path) {
-        val source = Source.fromFile(path)
-        val lines = source.getLines().flatMap(line => line.trim().split(" ")).toList
-        val label = lines.head
-        val data_i = generate_map(lines.tail.tail)
-        labels_tmp += label
-        data ++= data_i
+  def load_sample_reuters_data(train_path: String, topics_path: String, test_path: List[String], selected_cat: String, train: Boolean) = {
+    val (data, labels) = {
+      if (train) {
+        val source = Source.fromFile(train_path)
+        val lines = source.getLines().take(4)
+        generate_labelled_data(lines)
       }
-    }
-    val cat = get_category_dict(topics_path)
-    val labels = labels_tmp.map(label => if (cat.get(label.toInt).contains(selected_cat)) 1 else -1)
-    (data, labels.toList)
+      else {
+        var labels_tmp = List[Int]()
+        var data_i = List[Map[Int, Float]]()
+        for (path <- test_path) {
+          val source = Source.fromFile(path)
+          val lines = source.getLines().take(4)
+          val labelled_data = generate_labelled_data(lines)
+          data_i ++= labelled_data._1
+          labels_tmp ++= labelled_data._2
+        }
+        (data_i, labels_tmp)
+      }}
+    val categories = get_category_dict(topics_path)
+    val cat_labels = labels.map(label => if (categories.get(label).contains(selected_cat)) 1 else -1)
+    (data, cat_labels)
+  }
+
+  def load_reuters_data(train_path: String, topics_path: String, test_path: List[String], selected_cat: String, train: Boolean) = {
+    val (data, labels) = {
+      if (train) {
+        val source = Source.fromFile(train_path)
+        val lines = source.getLines()
+        generate_labelled_data(lines)
+      }
+      else {
+        var labels_tmp = List[Int]()
+        var data_i = List[Map[Int, Float]]()
+        for (path <- test_path) {
+          val source = Source.fromFile(path)
+          val lines = source.getLines()
+          val labelled_data = generate_labelled_data(lines)
+          data_i ++= labelled_data._1
+          labels_tmp ++= labelled_data._2
+        }
+        (data_i, labels_tmp)
+      }}
+    val categories = get_category_dict(topics_path)
+    val cat_labels = labels.map(label => if (categories.get(label).contains(selected_cat)) 1 else -1)
+    (data, cat_labels)
   }
 
   def get_category_dict(topics_path: String) = {

@@ -11,7 +11,7 @@ object Utils {
     var labels_tmp = ""
     var data = List[(String, String)]()
     if (train) {
-      val source = Source.fromFile(topics_path)
+      val source = Source.fromFile(train_path)
       val lines = source.getLines().take(4).flatMap(line => line.trim().split(" ")).toList
       labels_tmp = lines.head
       data = generate_map(lines.tail.tail)
@@ -35,7 +35,7 @@ object Utils {
     var labels_tmp = ""
     var data = List[(String, String)]()
     if (train) {
-      val source = Source.fromFile(topics_path)
+      val source = Source.fromFile(train_path)
       val lines = source.getLines().flatMap(line => line.trim().split(" ")).toList
       labels_tmp = lines.head
       data = generate_map(lines.tail.tail)

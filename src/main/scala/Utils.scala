@@ -22,7 +22,7 @@ object Utils {
     }).collect().toList.unzip
   }
 
-  def load_reuters_data(sc: SparkContext, train_path: String, topics_path: String, test_path: List[String], selected_cat: String, train: Boolean) = {
+  def load_reuters_data(sc: SparkContext, train_path: String, topics_path: String, test_paths: List[String], selected_cat: String, train: Boolean) = {
     val (data, labels) = {
       if (train) {
         val source = sc.textFile(train_path)
@@ -31,7 +31,7 @@ object Utils {
       else {
         var labels_tmp = List[Int]()
         var data_i = List[Map[Int, Float]]()
-        for (path <- test_path) {
+        for (path <- test_paths) {
           val source = sc.textFile(path)
           val labelled_data = generate_labelled_data(source)
           data_i ++= labelled_data._1

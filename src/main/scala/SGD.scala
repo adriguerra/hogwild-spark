@@ -6,7 +6,7 @@ object SGD {
     val N = train_XY.length
     val D = 47236
 
-    var wsub = W
+    val wsub = W
     //wsub += W
 
     val grads = train_XY.flatMap(xy => compute_gradient(xy._2._1, xy._2._2, wsub, regParam, N)).sum

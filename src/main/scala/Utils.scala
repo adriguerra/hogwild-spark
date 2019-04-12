@@ -18,7 +18,6 @@ object Utils {
       val elements = line.trim().split(" ")
       val label = elements.head.toInt
       val mappings = generate_mappings(elements.tail.tail)
-//      (Map(label -> mappings), mappings, label)
       (label, mappings)
     }).collect().toList.unzip
   }
@@ -34,7 +33,7 @@ object Utils {
         var data_i = List[Map[Int, Float]]()
         for (path <- test_paths) {
           val source = sc.textFile(path)
-          val (mapping, label) = generate_labelled_data(source)
+          val (label, mapping) = generate_labelled_data(source)
           data_i ++= mapping
           labels_tmp ++= label
         }
@@ -43,7 +42,7 @@ object Utils {
 
     val categories = get_category_dict(topics_path)
     val cat_labels = labels.map(label => if (categories.get(label).contains(selected_cat)) 1 else -1)
-    sc.parallelize(labels.zip(mappings.zip(cat_labels)))//.map(x => Map(x._1 -> x._2)))
+    sc.parallelize(labels.zip(mappings.zip(cat_labels)))
   }
 
   def get_category_dict(topics_path: String) = {

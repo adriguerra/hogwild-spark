@@ -1,3 +1,6 @@
+import org.apache.spark.SparkContext
+import org.apache.spark.rdd.RDD
+
 import scala.io.Source
 
 object Utils {
@@ -10,29 +13,27 @@ object Utils {
     }).toMap
   }
 
-  def generate_labelled_data(lines: Iterator[String]) = {
+  def generate_labelled_data(lines: RDD[String]) = {
     lines.map(line => {
       val elements = line.trim().split(" ")
       val label = elements.head.toInt
       val mappings = generate_mappings(elements.tail.tail)
       (mappings, label)
-    }).toList.unzip
+    }).collect().toList.unzip
   }
 
-  def load_sample_reuters_data(train_path: String, topics_path: String, test_paths: List[String], selected_cat: String, train: Boolean) = {
+  def load_reuters_data(sc: SparkContext, train_path: String, topics_path: String, test_paths: List[String], selected_cat: String, train: Boolean) = {
     val (data, labels) = {
       if (train) {
-        val source = Source.fromFile(train_path)
-        val lines = source.getLines().take(4)
-        generate_labelled_data(lines)
+        val source = sc.textFile(train_path)
+        generate_labelled_data(source)
       }
       else {
         var labels_tmp = List[Int]()
         var data_i = List[Map[Int, Float]]()
         for (path <- test_paths) {
-          val source = Source.fromFile(path)
-          val lines = source.getLines().take(4)
-          val labelled_data = generate_labelled_data(lines)
+          val source = sc.textFile(path)
+          val labelled_data = generate_labelled_data(source)
           data_i ++= labelled_data._1
           labels_tmp ++= labelled_data._2
         }
@@ -40,31 +41,7 @@ object Utils {
       }}
     val categories = get_category_dict(topics_path)
     val cat_labels = labels.map(label => if (categories.get(label).contains(selected_cat)) 1 else -1)
-    (data, cat_labels)
-  }
-
-  def load_reuters_data(train_path: String, topics_path: String, test_paths: List[String], selected_cat: String, train: Boolean) = {
-    val (data, labels) = {
-      if (train) {
-        val source = Source.fromFile(train_path)
-        val lines = source.getLines()
-        generate_labelled_data(lines)
-      }
-      else {
-        var labels_tmp = List[Int]()
-        var data_i = List[Map[Int, Float]]()
-        for (path <- test_paths) {
-          val source = Source.fromFile(path)
-          val lines = source.getLines()
-          val labelled_data = generate_labelled_data(lines)
-          data_i ++= labelled_data._1
-          labels_tmp ++= labelled_data._2
-        }
-        (data_i, labels_tmp)
-      }}
-    val categories = get_category_dict(topics_path)
-    val cat_labels = labels.map(label => if (categories.get(label).contains(selected_cat)) 1 else -1)
-    (data, cat_labels)
+    (sc.parallelize(data), sc.parallelize(cat_labels))
   }
 
   def get_category_dict(topics_path: String) = {

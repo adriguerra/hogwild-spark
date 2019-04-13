@@ -22,7 +22,9 @@ object Main {
     val t1 = System.nanoTime()
     val data = load_sample_reuters_data(sc, train_path, topics_path, test_paths, "CCAT", true)
     val load_duration = (System.nanoTime - t1) / 1e9d
+
     println("Load duration: " + load_duration)
+
     val seed = 42
     val train_proportion = 0.9
     val split = data.randomSplit(Array(train_proportion, 1-train_proportion), seed)
@@ -40,10 +42,9 @@ object Main {
     val alpha = 0.03
     val regParam = 0.1
 
-    val t2 = System.nanoTime()
-
     val losses = mutable.MutableList[Double]()
 
+    val t2 = System.nanoTime()
     for (i <- 1 to nb_epochs) {
       val wb = sc.broadcast(weights)
 
@@ -59,13 +60,13 @@ object Main {
         Iterator(compute_loss(partition.toVector, wb.value))
       })
 
-      weights = weightsRDD.reduce((a, b)=> (a, b).zipped.map(_+_))
-      weights = weights.map(_/workers)
+      weights = weightsRDD.reduce((a, b)=> (a, b).zipped.map(_+_)).map(_/workers)
 
       losses += lossRDD.sum / workers
     }
+
     val SGD_duration = (System.nanoTime - t2) / 1e9d
-    println("SGD duration: " + load_duration)
+    println("SGD duration: " + SGD_duration)
     print("Losses: " + losses)
   }
 }

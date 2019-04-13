@@ -7,10 +7,15 @@ object SGD {
     val D = 47236
 
     val wsub = W
-    //wsub += W
 
     val grads = train_XY.flatMap(xy => compute_gradient(xy._2._1, xy._2._2, wsub, regParam, N)).sum
+
     wsub.map(i => i - alpha * grads/batch_size)
+  }
+
+  def compute_loss(train_XY: Vector[(Int, (Map[Int, Float], Int))], W: Vector[Double]) = {
+    val wsub = W
+    hinge_loss(train_XY, wsub).sum
   }
 
   def is_support(yn: Double, xn: Map[Int, Float], w: Vector[Double]) = {
@@ -20,6 +25,21 @@ object SGD {
   def compute_gradient(xn: Map[Int, Float], yn: Double, wsub: Vector[Double], regParam: Double, N: Double) = {
     val grad = xn.mapValues(xi => N * {if(is_support(yn, xn, wsub)) xi * -yn else 0})
     grad.map(x => x._2 + regParam*wsub(x._1)).toVector
+  }
+
+  def hinge_loss(XY: Vector[(Int, (Map[Int, Float], Int))], w: Vector[Double]) = {
+    XY.map(v => {
+      val xy = v._2
+      val y = xy._2
+      val x = xy._1
+
+      val res = 1 - y * x.map(m => m._2 * w(m._1)).sum
+
+      if (res < 0)
+        0
+      else
+        res
+    })
   }
 
 }

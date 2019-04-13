@@ -2,6 +2,7 @@ import SGD._
 import Utils._
 import org.apache.spark.{HashPartitioner, SparkConf, SparkContext}
 
+import scala.collection.mutable
 import scala.util.Random
 //import org.apache.spark.sql.randomSplit
 //import org.apache.spark.randomSplit
@@ -36,6 +37,7 @@ object Main {
     val alpha = 0.03
     val regParam = 0.1
 
+    val losses = mutable.MutableList[Double]()
     for (i <- 1 to nb_epochs) {
       val wb = sc.broadcast(weights)
 
@@ -47,9 +49,13 @@ object Main {
       val weightsRDD = sampledRDD.mapPartitions(partition => {
         Iterator(sgd_subset(partition.toVector, wb.value, batch_size.value, alpha, regParam))
       })
+      val lossRDD = sampledRDD.mapPartitions(partition => {
+        Iterator(compute_loss(partition.toVector, wb.value))
+      })
 
       weights = weightsRDD.reduce((a, b)=> (a, b).zipped.map(_+_))
       weights.map(_/workers)
+      losses += lossRDD.sum / workers
     }
   }
 }

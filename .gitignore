@@ -3,6 +3,9 @@ src/main/resources
 build.sbt
 project/
 
+# Mac
+.DS_STORE
+
 # Scala
 target
 *.class

@@ -8,16 +8,23 @@ object SGD {
 
     val wsub = W
 
-    val grads = train_XY.map(xy => compute_gradient(xy._2._1, xy._2._2, wsub, regParam, N))
+    val grads = train_XY.map(xy => compute_gradient(xy._2._1, xy._2._2, wsub, regParam, D))
       .reduce((a,b) => (a,b).zipped.map(_+_))
     grads
 
     //wsub.map(i => i - alpha * grads/batch_size)
   }
 
-  def compute_gradient(xn: Map[Int, Float], yn: Double, wsub: Vector[Double], regParam: Double, N: Double) = {
-    val grad = xn.mapValues(xi => { if(is_support(yn, xn, wsub)) xi * -yn else 0})
-    grad.map(x => x._2 + regParam * wsub(x._1)).toVector
+  def compute_gradient(xn: Map[Int, Float], yn: Double, wsub: Vector[Double], regParam: Double, D: Int) = {
+
+    val grad_tmp = {for(i <- 0 until D)
+      yield (i, 0.0f)}.toMap
+    
+    val grad = grad_tmp.map(g => {
+      if (xn.contains(g._1) && is_support(yn, xn, wsub)) xn.get(g._1).get * -yn
+      else 0} + regParam * wsub(g._1)).toVector
+
+    grad
   }
 
   def is_support(yn: Double, xn: Map[Int, Float], w: Vector[Double]) = {

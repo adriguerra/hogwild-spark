@@ -3,6 +3,7 @@ import Utils._
 import org.apache.spark.{HashPartitioner, SparkConf, SparkContext}
 import Settings._
 
+
 import scala.util.Random
 
 object Main {
@@ -20,23 +21,30 @@ object Main {
     val split = data.randomSplit(Array(train_proportion, 1-train_proportion), seed)
     val train_set = split(0)
     val test_set = split(1)
+    val test_collected = test_set.collect()
 
     // Partition the train and test sets on the number of workers
     val train_partition = train_set.partitionBy(new HashPartitioner(workers))
-    val test_partition = test_set.partitionBy(new HashPartitioner(workers))
+    //val test_partition = test_set.partitionBy(new HashPartitioner(workers))
+    val count_test_set = test_collected.length
+    val count_train_set = train_set.count()
 
-    // Initializing weights, losses and array containing cumulated durations of epochs
+    // Initializing weights, training_losses and array containing cumulated durations of epochs
     var weights = Vector.fill(D)(0.0)
-    var losses = Vector.empty[Double]
+    var training_losses = Vector.empty[Double]
+    var validation_losses = Vector.empty[Double]
     var epoch_durations_cum = Vector.empty[Double]
 
     // Getting set up time
     val load_duration = (System.nanoTime - t1) / 1e9d
-    println("Load duration: " + load_duration)
+    println("Set up duration: " + load_duration)
 
     // The start of training epochs
     val t2 = System.nanoTime()
-    for (i <- 1 to nb_epochs) {
+    val validation_loss = 1
+    //validation_loss >= 0.2
+
+    for(i <- 1 to nb_epochs) {
 
       val wb = sc.broadcast(weights)
 
@@ -69,22 +77,34 @@ object Main {
         Iterator(compute_loss(partition.toVector, wb.value, regParam))
       })
 
+      /*val validationLoss = test_collected.map(partition => {
+        Iterator(compute_loss(partition, wb.value, regParam))
+      })*/
+      val validationLoss = compute_loss(test_collected.toVector, wb.value, regParam)
 
 
-
-      val loss = lossRDD.sum / workers
-      losses :+= loss
+      val train_loss = (lossRDD.sum)/ count_train_set
+      val validation_loss = (validationLoss)/ count_test_set
+      training_losses :+= train_loss
+      validation_losses :+= validation_loss
 
       val epoch_duration = (System.nanoTime - t2) / 1e9d
       epoch_durations_cum :+= epoch_duration
 
-      println("Current loss: " + loss)
+      println("Current training loss: " + train_loss)
+      println("Current validation loss: " + validation_loss)
       println("Epoch duration: " + epoch_duration)
     }
 
-    val SGD_duration = (System.nanoTime - t2) / 1e9d
-    println("SGD duration: " + SGD_duration)
+    // Prints of wome key observations
+    println("Set up duration: " + load_duration)
     println("Epoch durations: " + epoch_durations_cum)
-    println("Losses: " + losses)
+    println("Training losses: " + training_losses)
+    println("Validation losses: " + validation_losses)
+
+    /*val map_logs = Map("set_up_duration" -> load_duration,
+                       "epoch_durations" -> epoch_durations_cum,
+                       "training_losses" -> training_losses,
+                       "validation_losses" -> validation_losses) */
   }
 }

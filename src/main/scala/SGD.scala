@@ -19,7 +19,7 @@ object SGD {
 
     val grad_tmp = {for(i <- 0 until D)
       yield (i, 0.0f)}.toMap
-    
+
     val grad = grad_tmp.map(g => {
       if (xn.contains(g._1) && is_support(yn, xn, wsub)) xn.get(g._1).get * -yn
       else 0} + regParam * wsub(g._1)).toVector
@@ -34,9 +34,7 @@ object SGD {
   def compute_loss(train_XY: Vector[(Int, (Map[Int, Float], Int))], W: Vector[Double], regParam: Double) = {
     val wsub = W
     val loss = hinge_loss(train_XY, wsub).sum
-    println("Compute loss: " + loss)
     val reg = wsub.map(w => w * w).sum * regParam / 2
-    println("reg: " + reg)
     reg + loss
   }
 

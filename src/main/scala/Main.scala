@@ -62,7 +62,8 @@ object Main {
       })
 
       val grads = gradsRDD.reduce((a,b) => (a,b).zipped.map(_+_))
-      weights = weights.flatMap(w => grads.map(g => w - g * alpha))
+      // weights = weights.flatMap(w => grads.map(g => w - g * alpha))
+      weights = weights.zip(grads).map(z => z._1 - z._2 * alpha)
 
 //      println(weights)
 

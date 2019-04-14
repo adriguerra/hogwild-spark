@@ -1,5 +1,6 @@
 import SGD._
 import Utils._
+import Settings._
 import org.apache.spark.{HashPartitioner, SparkConf, SparkContext}
 
 import scala.util.Random
@@ -24,15 +25,9 @@ object Main {
 
     println("Load duration: " + load_duration)
 
-    val seed = 42
-    val train_proportion = 0.9
-    val D = 47237
-    val N = 23149
-    val workers = 10
-    val nb_epochs = 10
-    val batch_size = sc.broadcast(128)
-    val alpha = 0.03 * (100.0 / batch_size.value) / workers
-    val regParam = 1e-5
+    println("TEST HERE")
+
+    val b_batch_size = sc.broadcast(batch_size)
 
     val split = data.randomSplit(Array(train_proportion, 1-train_proportion), seed)
     val train_set = split(0)
@@ -49,27 +44,28 @@ object Main {
 
       val wb = sc.broadcast(weights)
 
-      val sampledRDD = train_partition.mapPartitions(it => {
-        val sample = Random.shuffle(it.toList).take(batch_size.value)
-        sample.iterator
-      })
+      // Compute gradient and loss at each partitions
+      val gradientsWithLoss = train_partition.mapPartitions(it => {
+        val samples = Random.shuffle(it.toList).take(b_batch_size.value).toVector
+        val gradient = sgd_subset(samples, wb.value, b_batch_size.value, alpha, regParam)
 
-      val gradsRDD = sampledRDD.mapPartitions(partition => {
-        Iterator(sgd_subset(partition.toVector, wb.value, batch_size.value, alpha, regParam))
-      })
-      val lossRDD = sampledRDD.mapPartitions(partition => {
-        Iterator(compute_loss(partition.toVector, wb.value, regParam))
-      })
+        val loss = compute_loss(it.toVector, wb.value, regParam)
 
-      val grads = gradsRDD.reduce((a,b) => (a,b).zipped.map(_+_))
-      // weights = weights.flatMap(w => grads.map(g => w - g * alpha))
-      weights = weights.zip(grads).map(z => z._1 - z._2 * alpha)
+        Iterator((gradient, loss))
+      }).collect()
 
-//      println(weights)
+      // Extract gradients and losses
+      val gradients = gradientsWithLoss.map(_._1)
+      val losses = gradientsWithLoss.map(_._2)
 
+      // Merge gradients computed at each partitions
+      val gradient = gradients.reduce((a,b) => (a,b).zipped.map(_+_))
 
-      val loss = lossRDD.sum / workers
-      losses :+= loss
+      // Update weights
+      weights = weights.zip(gradient).map(z => z._1 - z._2 * alpha)
+
+      // Compute new loss
+      val loss = losses.sum / workers
 
       val epoch_duration = (System.nanoTime - t2) / 1e9d
       epoch_durations :+= epoch_duration

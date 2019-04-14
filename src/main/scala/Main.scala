@@ -48,34 +48,32 @@ object Main {
 
       val wb = sc.broadcast(weights)
 
-      val sampledRDD = train_partition.mapPartitions(it => {
-        val sample = Random.shuffle(it.toList).take(batch_size)
-        sample.iterator
-      })
+      val gradientsWithLoss = train_partition.mapPartitions(it => {
+        val sample = Random.shuffle(it.toList).take(batch_size).toVector
+        val gradients = sgd_subset(sample, wb.value, regParam, D)
+        val loss = compute_loss(it.toVector, wb.value, regParam)
 
-      val gradsRDD = sampledRDD.mapPartitions(partition => {
-        Iterator(sgd_subset(partition.toVector, wb.value, regParam, D))
-      })
+        Iterator((gradients, loss))
+      }).collect()
 
-      val grads = gradsRDD.reduce((x, y) => {
+      // Extract gradients and losses
+      val gradients = gradientsWithLoss.map(_._1)
+      val losses = gradientsWithLoss.map(_._2)
+
+      // Merge gradients computed at each partitions
+      val gradient = gradients.reduce((x, y) => {
         val list = x.toList ++ y.toList
         val merged = list.groupBy ( _._1) .map { case (k,v) => k -> v.map(_._2).sum }
         merged
       })
 
-      val grad_keys = grads.keys.toVector
+      val grad_keys = gradient.keys.toVector
 
-      //CHECK the ELSE PART IF EVER THERE IS A BUG
       weights = ((0 until(D)).zip(weights)).map(x => {
-        if (grad_keys.contains(x._1)) x._2- grads(x._1)*alpha
+        if (grad_keys.contains(x._1)) x._2- gradient(x._1)*alpha
         else x._2
       }).toVector
 
-
-
-      val lossRDD = train_partition.mapPartitions(partition => {
-        Iterator(compute_loss(partition.toVector, wb.value, regParam))
-      })
 
       /*val validationLoss = test_collected.map(partition => {
         Iterator(compute_loss(partition, wb.value, regParam))
@@ -83,7 +81,7 @@ object Main {
       val validationLoss = compute_loss(test_collected.toVector, wb.value, regParam)
 
 
-      val train_loss = (lossRDD.sum)/ count_train_set
+      val train_loss = (losses.sum)/ count_train_set
       val validation_loss = (validationLoss)/ count_test_set
       training_losses :+= train_loss
       validation_losses :+= validation_loss

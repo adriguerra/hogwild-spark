@@ -14,59 +14,54 @@ object Utils {
     d ++ mappings
   }
 
-  def generate_labelled_data(lines: RDD[String]) = {
-    lines.map(line => {
+  def generate_labelled_data(sc: SparkContext, lines: RDD[String], topics_path: String, selected_cat: String) = {
+    lines.mapPartitions(it => {
+      val categories = get_category_dict(topics_path)
+      it.map(line => {
+        val elements = line.trim().split(" ")
+        val label = elements.head.toInt
+        val mappings = generate_mappings(elements.tail.tail)
+        //      val cat_labels = labels.map(label => if (categories.get(label).contains(selected_cat)) 1 else -1)
+        (label, (mappings, if (categories.get(label).contains(selected_cat)) 1 else -1))
+      })
+    })
+    /*lines.map(line => {
       val elements = line.trim().split(" ")
       val label = elements.head.toInt
       val mappings = generate_mappings(elements.tail.tail)
-      (label, mappings)
-    }).collect().toList.unzip
+      //      val cat_labels = labels.map(label => if (categories.get(label).contains(selected_cat)) 1 else -1)
+      (label, (mappings, if (categories.value.toMap.get(label).contains(selected_cat)) 1 else -1))
+    })*/
   }
 
   def load_sample_reuters_data(sc: SparkContext, train_path: String, topics_path: String, test_paths: List[String], selected_cat: String, train: Boolean) = {
-    val (labels, mappings) = {
-      if (train) {
-        val source = sc.textFile(train_path).take(2000)
-        generate_labelled_data(sc.parallelize(source))
+    if (train) {
+      val source = sc.textFile(train_path).take(20)
+      generate_labelled_data(sc, sc.parallelize(source), topics_path, selected_cat)
+    }
+    else {
+      val res = sc.emptyRDD[(Int, (Map[Int, Float], Int))]
+      for (path <- test_paths) {
+        val source = sc.textFile(path).take(20)
+        res.union(generate_labelled_data(sc, sc.parallelize(source), topics_path, selected_cat))
       }
-      else {
-        var labels_tmp = List[Int]()
-        var data_i = List[Map[Int, Float]]()
-        for (path <- test_paths) {
-          val source = sc.textFile(path).take(2000)
-          val (label, mapping) = generate_labelled_data(sc.parallelize(source))
-          data_i ++= mapping
-          labels_tmp ++= label
-        }
-        (labels_tmp, data_i)
-      }}
-
-    val categories = get_category_dict(topics_path)
-    val cat_labels = labels.map(label => if (categories.get(label).contains(selected_cat)) 1 else -1)
-    sc.parallelize(labels.zip(mappings.zip(cat_labels)))
+      res
+    }
   }
 
   def load_reuters_data(sc: SparkContext, train_path: String, topics_path: String, test_paths: List[String], selected_cat: String, train: Boolean) = {
-    val (labels, mappings) = {
-      if (train) {
-        val source = sc.textFile(train_path)
-        generate_labelled_data(source)
+    if (train) {
+      val source = sc.textFile(train_path)
+      generate_labelled_data(sc, source, topics_path, selected_cat)
+    }
+    else {
+      val res = sc.emptyRDD[(Int, (Map[Int, Float], Int))]
+      for (path <- test_paths) {
+        val source = sc.textFile(path)
+        res.union(generate_labelled_data(sc, source, topics_path, selected_cat))
       }
-      else {
-        var labels_tmp = List[Int]()
-        var data_i = List[Map[Int, Float]]()
-        for (path <- test_paths) {
-          val source = sc.textFile(path)
-          val (label, mapping) = generate_labelled_data(source)
-          data_i ++= mapping
-          labels_tmp ++= label
-        }
-        (labels_tmp, data_i)
-      }}
-
-    val categories = get_category_dict(topics_path)
-    val cat_labels = labels.map(label => if (categories.get(label).contains(selected_cat)) 1 else -1)
-    sc.parallelize(labels.zip(mappings.zip(cat_labels)))
+      res
+    }
   }
 
   def get_category_dict(topics_path: String) = {
@@ -78,3 +73,4 @@ object Utils {
     lines.groupBy(_._1).mapValues(l => l.map(_._2))
   }
 }
+

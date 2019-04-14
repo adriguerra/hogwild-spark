@@ -4,13 +4,24 @@ object SGD {
     /*    Computes stochastic gradient descent for a partition (in memory) */
 
     val N = train_XY.length
-    val D = 47236
+    val D = 47237
 
     val wsub = W
 
-    val grads = train_XY.flatMap(xy => compute_gradient(xy._2._1, xy._2._2, wsub, regParam, N)).sum
+    val grads = train_XY.map(xy => compute_gradient(xy._2._1, xy._2._2, wsub, regParam, N))
+      .reduce((a,b) => (a,b).zipped.map(_+_))
+    grads
 
-    wsub.map(i => i - alpha * grads/batch_size)
+    //wsub.map(i => i - alpha * grads/batch_size)
+  }
+
+  def compute_gradient(xn: Map[Int, Float], yn: Double, wsub: Vector[Double], regParam: Double, N: Double) = {
+    val grad = xn.mapValues(xi => { if(is_support(yn, xn, wsub)) xi * -yn else 0})
+    grad.map(x => x._2 + regParam * wsub(x._1)).toVector
+  }
+
+  def is_support(yn: Double, xn: Map[Int, Float], w: Vector[Double]) = {
+    yn * xn.map(x => w(x._1) * x._2).sum < 1
   }
 
   def compute_loss(train_XY: Vector[(Int, (Map[Int, Float], Int))], W: Vector[Double], regParam: Double) = {
@@ -20,15 +31,6 @@ object SGD {
     val reg = wsub.map(w => w * w).sum * regParam / 2
     println("reg: " + reg)
     reg + loss
-  }
-
-  def is_support(yn: Double, xn: Map[Int, Float], w: Vector[Double]) = {
-    yn * xn.map(x => w(x._1) * x._2).sum < 1
-  }
-
-  def compute_gradient(xn: Map[Int, Float], yn: Double, wsub: Vector[Double], regParam: Double, N: Double) = {
-    val grad = xn.mapValues(xi => 1/N * { if(is_support(yn, xn, wsub)) xi * -yn else 0})
-    grad.map(x => x._2 + regParam * wsub(x._1)).toVector
   }
 
   def hinge_loss(XY: Vector[(Int, (Map[Int, Float], Int))], w: Vector[Double]) = {

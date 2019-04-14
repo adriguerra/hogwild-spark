@@ -6,11 +6,12 @@ import scala.io.Source
 object Utils {
 
   def generate_mappings(datapoint: Array[String]) = {
-    //    val d = {0 -> 1}
-    datapoint.map(x => {
+    val d = Map(0 -> 1.0f)
+    val mappings = datapoint.map(x => {
       val pairs = x.split(":")
       (pairs.head.toInt, pairs.last.toFloat)
     }).toMap
+    d ++ mappings
   }
 
   def generate_labelled_data(lines: RDD[String]) = {
@@ -25,14 +26,14 @@ object Utils {
   def load_sample_reuters_data(sc: SparkContext, train_path: String, topics_path: String, test_paths: List[String], selected_cat: String, train: Boolean) = {
     val (labels, mappings) = {
       if (train) {
-        val source = sc.textFile(train_path).take(20)
+        val source = sc.textFile(train_path).take(2000)
         generate_labelled_data(sc.parallelize(source))
       }
       else {
         var labels_tmp = List[Int]()
         var data_i = List[Map[Int, Float]]()
         for (path <- test_paths) {
-          val source = sc.textFile(path).take(20)
+          val source = sc.textFile(path).take(2000)
           val (label, mapping) = generate_labelled_data(sc.parallelize(source))
           data_i ++= mapping
           labels_tmp ++= label

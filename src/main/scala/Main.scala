@@ -1,9 +1,8 @@
 import SGD._
 import Utils._
-import org.apache.spark.{HashPartitioner, SparkConf, SparkContext}
+import org.apache.spark.{HashPartitioner, RangePartitioner, SparkConf, SparkContext}
 import org.apache.spark.sql.SparkSession
 import Settings._
-
 
 import scala.util.Random
 
@@ -15,7 +14,6 @@ object Main {
     val spark = SparkSession.builder.appName("hogwild-spark").getOrCreate()
     val sc = spark.sparkContext
 
-
     // Load data and split it into train/test
     val data = load_reuters_data(sc, train_path, topics_path, test_paths, "CCAT", true)
 
@@ -24,17 +22,20 @@ object Main {
     val test_set = split(1)
     val test_collected = test_set.collect()
 
-    // Partition the train and test sets on the number of workers
-    val train_partition = train_set.partitionBy(new HashPartitioner(workers))
-    //val test_partition = test_set.partitionBy(new HashPartitioner(workers))
+    // Spread the data to all nodes
+    val b_train_set = sc.broadcast(train_set.collect().toList)
+
     val count_test_set = test_collected.length
-    val count_train_set = train_set.count()
 
     // Initializing weights, training_losses and array containing cumulated durations of epochs
     var weights = Vector.fill(D)(0.0)
     var training_losses = Vector.empty[Double]
     var validation_losses = Vector.empty[Double]
     var epoch_durations_cum = Vector.empty[Double]
+
+    // Creates partition accessor
+    val range = sc.parallelize((1 to workers).zip(1 to workers))
+    val access = range.partitionBy(new RangePartitioner(workers, test, true))
 
     // Getting set up time
     val load_duration = (System.nanoTime - t1) / 1e9d
@@ -43,23 +44,19 @@ object Main {
     // The start of training epochs
     val t2 = System.nanoTime()
     var validation_loss = 1.0
-    //
 
     while(validation_loss >= 0.3) {
 
+      // Spread weights to all nodes
       val wb = sc.broadcast(weights)
 
-      val gradientsWithLoss = train_partition.mapPartitions(it => {
-        val sample = Random.shuffle(it.toList).take(batch_size).toVector
+      // Compute gradient at each node using accessor
+      val gradients = access.mapPartitions(it => {
+        val sample = Random.shuffle(b_train_set.value).take(batch_size).toVector
         val gradients = sgd_subset(sample, wb.value, regParam, D)
-        val loss = compute_loss(it.toVector, wb.value, regParam)
 
-        Iterator((gradients, loss))
+        Iterator(gradients)
       }).collect()
-
-      // Extract gradients and losses
-      val gradients = gradientsWithLoss.map(_._1)
-      val losses = gradientsWithLoss.map(_._2)
 
       // Merge gradients computed at each partitions
       val gradient = gradients.reduce((x, y) => {
@@ -68,42 +65,34 @@ object Main {
         merged
       })
 
+      // Update weights
       val grad_keys = gradient.keys.toVector
-
       weights = ((0 until(D)).zip(weights)).map(x => {
         if (grad_keys.contains(x._1)) x._2- gradient(x._1)*alpha
         else x._2
       }).toVector
 
+      // Compute validation loss
+      validation_loss = compute_loss(test_collected.toVector, wb.value, regParam))
 
-      /*val validationLoss = test_collected.map(partition => {
-        Iterator(compute_loss(partition, wb.value, regParam))
-      })*/
-      val validationLoss = compute_loss(test_collected.toVector, wb.value, regParam)
-
-
-      val train_loss = (lossRDD.sum)/ count_train_set
-      validation_loss = (validationLoss)/ count_test_set
-      training_losses :+= train_loss
+      //val train_loss = (lossRDD.sum)/ count_train_set
+      validation_loss = (validation_loss)/ count_test_set
+      //training_losses :+= train_loss
       validation_losses :+= validation_loss
 
       val epoch_duration = (System.nanoTime - t2) / 1e9d
       epoch_durations_cum :+= epoch_duration
 
-      println("Current training loss: " + train_loss)
+      //println("Current training loss: " + train_loss)
       println("Current validation loss: " + validation_loss)
       println("Epoch duration: " + epoch_duration)
     }
 
-    // Prints of wome key observations
+    // Prints of some key observations
     println("Set up duration: " + load_duration)
     println("Epoch durations: " + epoch_durations_cum)
     println("Training losses: " + training_losses)
     println("Validation losses: " + validation_losses)
 
-    /*val map_logs = Map("set_up_duration" -> load_duration,
-                       "epoch_durations" -> epoch_durations_cum,
-                       "training_losses" -> training_losses,
-                       "validation_losses" -> validation_losses) */
   }
 }

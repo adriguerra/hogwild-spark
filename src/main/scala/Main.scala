@@ -1,6 +1,7 @@
 import SGD._
 import Utils._
 import org.apache.spark.{HashPartitioner, SparkConf, SparkContext}
+import org.apache.spark.sql.SparkSession
 import Settings._
 
 
@@ -11,13 +12,13 @@ object Main {
 
     // Begin the set up
     val t1 = System.nanoTime()
-    val conf = new SparkConf().setMaster("local").setAppName("SGD")
-    val sc = new SparkContext(conf)
-
+    val spark = SparkSession.builder.appName("hogwild-spark").getOrCreate()
+    val sc = spark.sparkContext
 
 
     // Load data and split it into train/test
     val data = load_reuters_data(sc, train_path, topics_path, test_paths, "CCAT", true)
+
     val split = data.randomSplit(Array(train_proportion, 1-train_proportion), seed)
     val train_set = split(0)
     val test_set = split(1)
@@ -41,10 +42,10 @@ object Main {
 
     // The start of training epochs
     val t2 = System.nanoTime()
-    val validation_loss = 1
-    //validation_loss >= 0.2
+    var validation_loss = 1.0
+    //
 
-    for(i <- 1 to nb_epochs) {
+    while(validation_loss >= 0.3) {
 
       val wb = sc.broadcast(weights)
 
@@ -84,7 +85,7 @@ object Main {
 
 
       val train_loss = (lossRDD.sum)/ count_train_set
-      val validation_loss = (validationLoss)/ count_test_set
+      validation_loss = (validationLoss)/ count_test_set
       training_losses :+= train_loss
       validation_losses :+= validation_loss
 

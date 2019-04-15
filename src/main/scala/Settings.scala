@@ -4,7 +4,7 @@ object Settings {
   val train_proportion = 0.9
   val D = 47237
   val N = 23149
-  val workers = 3
+  val workers = 6
   val nb_epochs = 10
   val batch_size = 100
   val alpha = 0.03 * (100.0 / batch_size) / workers

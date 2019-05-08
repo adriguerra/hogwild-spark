@@ -1,8 +1,8 @@
 import SGD._
-import Utils._
-import org.apache.spark.{HashPartitioner, RangePartitioner, SparkConf, SparkContext}
-import org.apache.spark.sql.SparkSession
 import Settings._
+import Utils._
+import org.apache.spark.RangePartitioner
+import org.apache.spark.sql.SparkSession
 
 import scala.util.Random
 
@@ -35,7 +35,7 @@ object Main {
 
     // Creates partition accessor
     val range = sc.parallelize((1 to workers).zip(1 to workers))
-    val access = range.partitionBy(new RangePartitioner(workers, test, true))
+    val access = range.partitionBy(new RangePartitioner(workers, range, true))
 
     // Getting set up time
     val load_duration = (System.nanoTime - t1) / 1e9d
@@ -68,12 +68,12 @@ object Main {
       // Update weights
       val grad_keys = gradient.keys.toVector
       weights = ((0 until(D)).zip(weights)).map(x => {
-        if (grad_keys.contains(x._1)) x._2- gradient(x._1)*alpha
+        if (grad_keys.contains(x._1)) x._2 - gradient(x._1)*alpha
         else x._2
       }).toVector
 
       // Compute validation loss
-      validation_loss = compute_loss(test_collected.toVector, wb.value, regParam))
+      validation_loss = compute_loss(test_collected.toVector, wb.value, regParam)
 
       //val train_loss = (lossRDD.sum)/ count_train_set
       validation_loss = (validation_loss)/ count_test_set
